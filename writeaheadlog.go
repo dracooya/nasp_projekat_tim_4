@@ -10,6 +10,10 @@ import (
 	"time"
 )
 
+const (
+	batchSize = 5
+)
+
 func CRC32(data []byte) uint32 {
 	return crc32.ChecksumIEEE(data)
 }
@@ -22,7 +26,9 @@ type Entry struct {
 }
 
 type Log struct {
-	file *os.File
+	file  *os.File
+	batch [][]byte
+	i     int
 }
 
 func Create(path string) (*Log, error) {
@@ -30,7 +36,7 @@ func Create(path string) (*Log, error) {
 	if err != nil {
 		return nil, err
 	}
-	log := &Log{file: file}
+	log := &Log{file: file, batch: make([][]byte, batchSize), i: 0}
 	return log, err
 }
 
@@ -39,16 +45,20 @@ func Open(path string) (*Log, error) {
 	if err != nil {
 		return nil, err
 	}
-	log := &Log{file: file}
+	log := &Log{file: file, batch: make([][]byte, batchSize), i: 0}
 	return log, err
 }
 
 func (log *Log) Close() error {
-	err := log.file.Close()
+	err := log.writeBatch() // ako je nešto ostalo u bufferu, ispiši pre zatvaranja
+	if err != nil {
+		return err
+	}
+	err = log.file.Close()
 	return err
 }
 
-func (log *Log) WritePut(key string, value []byte) error {
+func (log *Log) WritePutDirect(key string, value []byte) error {
 	_, err := log.file.Seek(0, 2)
 	if err != nil {
 		return err
@@ -77,7 +87,33 @@ func (log *Log) WritePut(key string, value []byte) error {
 	return nil
 }
 
-func (log *Log) WriteDelete(key string) error {
+func (log *Log) WritePutBuffer(key string, value []byte) error {
+	bytes := make([]byte, 29+len(key)+len(value))                              // 4+8+1+8+8 = 29 dužina jednog entry-a write ahead loga bez ključa i vrednosti
+	binary.LittleEndian.PutUint32(bytes[:4], CRC32([]byte(key)))               // CRC - 4B
+	binary.LittleEndian.PutUint64(bytes[4:12], uint64(time.Now().UnixMicro())) // Timestamp - 8B
+	bytes[12] = 0                                                              // Tombstone - 1B
+	binary.LittleEndian.PutUint64(bytes[13:21], uint64(len(key)))              // Key size - 8B
+	binary.LittleEndian.PutUint64(bytes[21:29], uint64(len(value)))            // Value size - 8B
+	for i := 0; i < len(key); i++ {                                            // Key postavljen
+		bytes[29+i] = key[i]
+	}
+	for i := 0; i < len(value); i++ { // Value postavljen
+		bytes[29+len(key)+i] = value[i]
+	}
+	log.batch[log.i] = bytes
+	log.i++
+	if log.i == batchSize {
+		err := log.writeBatch()
+		if err != nil {
+			return err
+		}
+		log.i = 0
+		log.batch = make([][]byte, batchSize)
+	}
+	return nil
+}
+
+func (log *Log) WriteDeleteDirect(key string) error {
 	_, err := log.file.Seek(0, 2)
 	if err != nil {
 		return err
@@ -94,6 +130,46 @@ func (log *Log) WriteDelete(key string) error {
 	_, err = log.file.Write(bytes)
 	if err != nil {
 		return err
+	}
+	err = log.file.Sync()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (log *Log) WriteDeleteBuffer(key string) error {
+	bytes := make([]byte, 21+len(key))                                         // 4+8+1+8 = 21 dužina jednog entry-a write ahead loga bez ključa, vrednosti ali i value size-a jer je ovde nepotreban
+	binary.LittleEndian.PutUint32(bytes[:4], CRC32([]byte(key)))               // CRC - 4B
+	binary.LittleEndian.PutUint64(bytes[4:12], uint64(time.Now().UnixMicro())) // Timestamp - 8B
+	bytes[12] = 1                                                              // Tombstone - 1B
+	binary.LittleEndian.PutUint64(bytes[13:21], uint64(len(key)))              // Key size - 8B
+	for i := 0; i < len(key); i++ {                                            // Key postavljen
+		bytes[21+i] = key[i]
+	}
+	log.batch[log.i] = bytes
+	log.i++
+	if log.i == batchSize {
+		err := log.writeBatch()
+		if err != nil {
+			return err
+		}
+		log.i = 0
+		log.batch = make([][]byte, batchSize)
+	}
+	return nil
+}
+
+func (log *Log) writeBatch() error {
+	_, err := log.file.Seek(0, 2)
+	if err != nil {
+		return err
+	}
+	for i := 0; i < log.i; i++ {
+		_, err = log.file.Write(log.batch[i])
+		if err != nil {
+			return err
+		}
 	}
 	err = log.file.Sync()
 	if err != nil {
@@ -251,7 +327,7 @@ func test() {
 	log, err = Open("wal")
 
 	b := []byte{1, 2, 3, 2, 4, 6, 5, 7}
-	err = log.WritePut("test", b)
+	err = log.WritePutDirect("test", b)
 
 	if err != nil {
 		fmt.Println(err)
@@ -259,14 +335,14 @@ func test() {
 	}
 
 	c := []byte{4, 3, 2, 1}
-	err = log.WritePut("test2", c)
+	err = log.WritePutDirect("test2", c)
 
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	err = log.WriteDelete("test")
+	err = log.WriteDeleteDirect("test")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -305,9 +381,32 @@ func test() {
 		fmt.Println("Cetvrti entry:", err)
 	}
 
+	_ = log.WritePutBuffer("key1", b)
+	_ = log.WritePutBuffer("key2", c)
+	_ = log.WriteDeleteBuffer("key1")
+	fmt.Println("Ispis celog loga tokom buffer dodavanja:", all)
+	_ = log.WriteDeleteBuffer("key2")
+	_ = log.WritePutBuffer("key3", c)
+	_ = log.WriteDeleteBuffer("key3")
+
+	all, err = log.ReadAll()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("Ispis celog loga pre zatvaranja:", all)
+
 	err = log.Close()
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+
+	log, err = Open("wal")
+	all, err = log.ReadAll()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	fmt.Println("Ispis celog loga posle zatvaranja:", all)
 }
