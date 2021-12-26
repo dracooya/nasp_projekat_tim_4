@@ -7,6 +7,7 @@ import (
 	"github.com/edsrzf/mmap-go"
 	"hash/crc32"
 	"io"
+	"io/fs"
 	"os"
 	"strconv"
 	"strings"
@@ -14,8 +15,9 @@ import (
 )
 
 const (
-	batchSize   = 3
-	segmentSize = 6
+	batchSize    = 3
+	segmentSize  = 6
+	lowWaterMark = 3
 )
 
 type Entry struct {
@@ -93,7 +95,7 @@ func Open(path string) (*Log, error) {
 	}
 	lastFile := files[0]
 	for _, f := range files {
-		if strings.HasPrefix(f.Name(), path) {
+		if strings.HasPrefix(f.Name(), path+"_") {
 			lastFile = f
 		}
 	}
@@ -119,7 +121,10 @@ func (log *Log) Close() error {
 		return err
 	}
 	err = log.file.Close()
-	return err
+	if err != nil && !strings.Contains(err.Error(), fs.ErrClosed.Error()) {
+		return err
+	}
+	return nil
 }
 
 func countEntries(file *os.File) (int, error) {
@@ -183,11 +188,23 @@ func (log *Log) WritePutDirect(key string, value []byte) error {
 		log.entryNum++
 	} else {
 		log.endIndex++
+
+		err := log.checkWaterMark()
+		if err != nil {
+			return err
+		}
+
 		log.currIndex = log.endIndex
 		log.entryNum = 0
 		file, err := os.Create("wal/" + log.fileName + "_" + strconv.Itoa(log.currIndex))
 		if err != nil {
 			return err
+		}
+		if log.file != nil {
+			err := log.file.Close()
+			if err != nil && !strings.Contains(err.Error(), fs.ErrClosed.Error()) {
+				return err
+			}
 		}
 		log.file = file
 		err = log.writePutDirect(key, value)
@@ -249,11 +266,23 @@ func (log *Log) WriteDeleteDirect(key string) error {
 		log.entryNum++
 	} else {
 		log.endIndex++
+
+		err := log.checkWaterMark()
+		if err != nil {
+			return err
+		}
+
 		log.currIndex = log.endIndex
 		log.entryNum = 0
 		file, err := os.Create("wal/" + log.fileName + "_" + strconv.Itoa(log.currIndex))
 		if err != nil {
 			return err
+		}
+		if log.file != nil {
+			err := log.file.Close()
+			if err != nil && !strings.Contains(err.Error(), fs.ErrClosed.Error()) {
+				return err
+			}
 		}
 		log.file = file
 		err = log.writeDeleteDirect(key)
@@ -261,6 +290,35 @@ func (log *Log) WriteDeleteDirect(key string) error {
 			return err
 		}
 		log.entryNum++
+	}
+	return nil
+}
+
+func (log *Log) checkWaterMark() error {
+	if log.endIndex > lowWaterMark {
+		err := log.file.Close()
+		if err != nil && !strings.Contains(err.Error(), fs.ErrClosed.Error()) {
+			return err
+		}
+		files, err := os.ReadDir("wal/")
+		if err != nil {
+			return err
+		}
+		var filesForDeletion []string
+
+		for _, f := range files {
+			if strings.HasPrefix(f.Name(), log.fileName+"_") {
+				filesForDeletion = append(filesForDeletion, "wal/"+f.Name())
+			}
+		}
+		for _, f := range filesForDeletion {
+			err := os.Remove(f)
+			if err != nil {
+				return err
+			}
+		}
+		log.endIndex = 0
+		log.startIndex = 0
 	}
 	return nil
 }
@@ -317,7 +375,7 @@ func (log *Log) activateLastSegment() error {
 		log.currIndex = log.endIndex
 		if log.file != nil {
 			err := log.file.Close()
-			if err != nil {
+			if err != nil && !strings.Contains(err.Error(), fs.ErrClosed.Error()) {
 				return err
 			}
 		}
@@ -355,11 +413,21 @@ func (log *Log) writeBatch() error {
 			log.entryNum++
 		} else {
 			log.endIndex++
+			err := log.checkWaterMark()
+			if err != nil {
+				return err
+			}
 			log.currIndex = log.endIndex
 			log.entryNum = 0
 			file, err := os.Create("wal/" + log.fileName + "_" + strconv.Itoa(log.currIndex))
 			if err != nil {
 				return err
+			}
+			if log.file != nil {
+				err := log.file.Close()
+				if err != nil && !strings.Contains(err.Error(), fs.ErrClosed.Error()) {
+					return err
+				}
 			}
 			log.file = file
 			err = mmapAppend(log.file, log.batch[i])
@@ -377,6 +445,7 @@ func (log *Log) ReadAll() ([]Entry, error) {
 
 	for i := log.startIndex; i <= log.endIndex; i++ {
 		file, err := os.Open("wal/" + log.fileName + "_" + strconv.Itoa(i))
+		defer file.Close()
 		if err != nil {
 			return entries, err
 		}
@@ -447,6 +516,7 @@ func (log *Log) ReadAt(index int) (*Entry, error) {
 	j := 0
 	for i := log.startIndex; i <= log.endIndex; i++ {
 		file, err := os.Open("wal/" + log.fileName + "_" + strconv.Itoa(i))
+		defer file.Close()
 		if err != nil {
 			return nil, err
 		}
@@ -595,17 +665,19 @@ func test() {
 		return
 	}
 
-	err = log.writeDeleteDirect("a")
+	err = log.WriteDeleteDirect("a")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	err = log.writeDeleteDirect("b")
+
+	err = log.WriteDeleteDirect("b")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	err = log.writeDeleteDirect("c")
+
+	err = log.WriteDeleteDirect("c")
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -616,7 +688,6 @@ func test() {
 		fmt.Println(err)
 		return
 	}
-
 	fmt.Println(all)
 
 	err = log.Close()
@@ -680,13 +751,11 @@ func test() {
 	}
 
 	fmt.Println(all)
-
 	err = log.WriteDeleteBuffer("c")
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-
 	err = log.WritePutBuffer("c", []byte{10, 12, 13, 15})
 	if err != nil {
 		fmt.Println(err)
@@ -697,7 +766,6 @@ func test() {
 		fmt.Println(err)
 		return
 	}
-
 	all, err = log.ReadAll()
 	if err != nil {
 		fmt.Println(err)
