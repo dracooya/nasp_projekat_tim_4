@@ -19,6 +19,10 @@ var (
 	batchSize    = 4
 	segmentSize  = 10
 	lowWaterMark = 4
+
+	ErrCorrupted   = errors.New("log corrupted")
+	ErrOutOfBounds = errors.New("index out of bounds")
+	ErrNotFound    = errors.New("file not found")
 )
 
 type Entry struct {
@@ -91,7 +95,7 @@ func Open(path string) (*Log, error) {
 		return nil, err
 	}
 	if len(files) == 0 {
-		return nil, errors.New("fajl sa ovim imenom ne postoji")
+		return nil, ErrNotFound
 	}
 	lastFile := files[0]
 	for _, f := range files {
@@ -170,9 +174,67 @@ func countEntries(file *os.File) (int, error) {
 				return -1, err
 			}
 		} else {
-			return -1, errors.New("log corrupted")
+			return -1, ErrCorrupted
 		}
 	}
+}
+
+func formBytesPut(key string, value []byte) []byte {
+	bytes := make([]byte, 29+len(key)+len(value))                              // 4+8+1+8+8 = 29 dužina jednog entry-a write ahead loga bez ključa batchNum vrednosti
+	binary.LittleEndian.PutUint32(bytes[:4], CRC32([]byte(key)))               // CRC - 4B
+	binary.LittleEndian.PutUint64(bytes[4:12], uint64(time.Now().UnixMicro())) // Timestamp - 8B
+	bytes[12] = 0                                                              // Tombstone - 1B
+	binary.LittleEndian.PutUint64(bytes[13:21], uint64(len(key)))              // Key size - 8B
+	binary.LittleEndian.PutUint64(bytes[21:29], uint64(len(value)))            // Value size - 8B
+	for i := 0; i < len(key); i++ {                                            // Key postavljen
+		bytes[29+i] = key[i]
+	}
+	for i := 0; i < len(value); i++ { // Value postavljen
+		bytes[29+len(key)+i] = value[i]
+	}
+
+	return bytes
+}
+
+func formBytesDelete(key string) []byte {
+	bytes := make([]byte, 21+len(key))                                         // 4+8+1+8 = 21 dužina jednog entry-a write ahead loga bez ključa, vrednosti ali batchNum value size-a jer je ovde nepotreban
+	binary.LittleEndian.PutUint32(bytes[:4], CRC32([]byte(key)))               // CRC - 4B
+	binary.LittleEndian.PutUint64(bytes[4:12], uint64(time.Now().UnixMicro())) // Timestamp - 8B
+	bytes[12] = 1                                                              // Tombstone - 1B
+	binary.LittleEndian.PutUint64(bytes[13:21], uint64(len(key)))              // Key size - 8B
+	for i := 0; i < len(key); i++ {                                            // Key postavljen
+		bytes[21+i] = key[i]
+	}
+
+	return bytes
+}
+
+func (log *Log) checkWaterMark() error {
+	if log.endIndex > lowWaterMark {
+		err := log.file.Close()
+		if err != nil && !strings.Contains(err.Error(), fs.ErrClosed.Error()) {
+			return err
+		}
+		files, err := os.ReadDir("wal/")
+		if err != nil {
+			return err
+		}
+		var filesForDeletion []string
+
+		for _, f := range files {
+			if strings.HasPrefix(f.Name(), log.fileName+"_") {
+				filesForDeletion = append(filesForDeletion, "wal/"+f.Name())
+			}
+		}
+		for _, f := range filesForDeletion {
+			err := os.Remove(f)
+			if err != nil {
+				return err
+			}
+		}
+		log.endIndex = 0
+	}
+	return nil
 }
 
 func (log *Log) WritePutDirect(key string, value []byte) error {
@@ -227,23 +289,6 @@ func (log *Log) writePutDirect(key string, value []byte) error {
 	return nil
 }
 
-func formBytesPut(key string, value []byte) []byte {
-	bytes := make([]byte, 29+len(key)+len(value))                              // 4+8+1+8+8 = 29 dužina jednog entry-a write ahead loga bez ključa batchNum vrednosti
-	binary.LittleEndian.PutUint32(bytes[:4], CRC32([]byte(key)))               // CRC - 4B
-	binary.LittleEndian.PutUint64(bytes[4:12], uint64(time.Now().UnixMicro())) // Timestamp - 8B
-	bytes[12] = 0                                                              // Tombstone - 1B
-	binary.LittleEndian.PutUint64(bytes[13:21], uint64(len(key)))              // Key size - 8B
-	binary.LittleEndian.PutUint64(bytes[21:29], uint64(len(value)))            // Value size - 8B
-	for i := 0; i < len(key); i++ {                                            // Key postavljen
-		bytes[29+i] = key[i]
-	}
-	for i := 0; i < len(value); i++ { // Value postavljen
-		bytes[29+len(key)+i] = value[i]
-	}
-
-	return bytes
-}
-
 func (log *Log) WritePutBuffer(key string, value []byte) error {
 	bytes := formBytesPut(key, value)
 	err := log.writeBuffer(bytes)
@@ -294,34 +339,6 @@ func (log *Log) WriteDeleteDirect(key string) error {
 	return nil
 }
 
-func (log *Log) checkWaterMark() error {
-	if log.endIndex > lowWaterMark {
-		err := log.file.Close()
-		if err != nil && !strings.Contains(err.Error(), fs.ErrClosed.Error()) {
-			return err
-		}
-		files, err := os.ReadDir("wal/")
-		if err != nil {
-			return err
-		}
-		var filesForDeletion []string
-
-		for _, f := range files {
-			if strings.HasPrefix(f.Name(), log.fileName+"_") {
-				filesForDeletion = append(filesForDeletion, "wal/"+f.Name())
-			}
-		}
-		for _, f := range filesForDeletion {
-			err := os.Remove(f)
-			if err != nil {
-				return err
-			}
-		}
-		log.endIndex = 0
-	}
-	return nil
-}
-
 func (log *Log) writeDeleteDirect(key string) error {
 	bytes := formBytesDelete(key)
 
@@ -354,19 +371,6 @@ func (log *Log) writeBuffer(bytes []byte) error {
 		log.batch = make([][]byte, batchSize)
 	}
 	return nil
-}
-
-func formBytesDelete(key string) []byte {
-	bytes := make([]byte, 21+len(key))                                         // 4+8+1+8 = 21 dužina jednog entry-a write ahead loga bez ključa, vrednosti ali batchNum value size-a jer je ovde nepotreban
-	binary.LittleEndian.PutUint32(bytes[:4], CRC32([]byte(key)))               // CRC - 4B
-	binary.LittleEndian.PutUint64(bytes[4:12], uint64(time.Now().UnixMicro())) // Timestamp - 8B
-	bytes[12] = 1                                                              // Tombstone - 1B
-	binary.LittleEndian.PutUint64(bytes[13:21], uint64(len(key)))              // Key size - 8B
-	for i := 0; i < len(key); i++ {                                            // Key postavljen
-		bytes[21+i] = key[i]
-	}
-
-	return bytes
 }
 
 func (log *Log) activateLastSegment() error {
@@ -497,11 +501,11 @@ func (log *Log) ReadAll() ([]Entry, error) {
 
 				entry.key = string(data[:])
 			} else {
-				return nil, errors.New("log corrupted")
+				return nil, ErrCorrupted
 			}
 
 			if CRC32([]byte(entry.key)) != crc {
-				return nil, errors.New("log corrupted")
+				return nil, ErrCorrupted
 			}
 
 			entries = append(entries, entry)
@@ -561,7 +565,7 @@ func (log *Log) ReadAt(index int) (*Entry, error) {
 						return nil, err
 					}
 				} else {
-					return nil, errors.New("log corrupted")
+					return nil, ErrCorrupted
 				}
 			} else {
 				entry := Entry{}
@@ -611,11 +615,11 @@ func (log *Log) ReadAt(index int) (*Entry, error) {
 
 					entry.key = string(data[:])
 				} else {
-					return nil, errors.New("log corrupted")
+					return nil, ErrCorrupted
 				}
 
 				if CRC32([]byte(entry.key)) != crc {
-					return nil, errors.New("log corrupted")
+					return nil, ErrCorrupted
 				}
 
 				return &entry, nil
@@ -624,7 +628,7 @@ func (log *Log) ReadAt(index int) (*Entry, error) {
 		}
 	}
 
-	return nil, errors.New("index out of bounds")
+	return nil, ErrOutOfBounds
 }
 
 func ClearWALFolder() {
