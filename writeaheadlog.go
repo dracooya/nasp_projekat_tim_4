@@ -1,6 +1,7 @@
 package writeaheadlog
 
 import (
+	"bufio"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -638,38 +639,29 @@ func LoadConfigurations() error {
 	if err != nil {
 		return err
 	}
-	_, err = config.Seek(10, 0)
-	if err != nil {
-		return err
-	}
-	data := make([]byte, 1)
-	_, err = config.Read(data)
-	if err != nil {
-		return err
-	}
-	batchSize = int(data[0]) - 48
 
-	_, err = config.Seek(14, 1)
-	if err != nil {
-		return err
-	}
-	data = make([]byte, 1)
-	_, err = config.Read(data)
-	if err != nil {
-		return err
-	}
-	segmentSize = int(data[0]) - 48
+	scanner := bufio.NewScanner(config)
 
-	_, err = config.Seek(15, 1)
+	scanner.Scan()
+	batchSize, err = strconv.Atoi(scanner.Text()[10:])
 	if err != nil {
 		return err
 	}
-	data = make([]byte, 1)
-	_, err = config.Read(data)
+	scanner.Scan()
+	segmentSize, err = strconv.Atoi(scanner.Text()[12:])
 	if err != nil {
 		return err
 	}
-	lowWaterMark = int(data[0]) - 48
+	scanner.Scan()
+	lowWaterMark, err = strconv.Atoi(scanner.Text()[13:])
+	if err != nil {
+		return err
+	}
+
+	err = config.Close()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
