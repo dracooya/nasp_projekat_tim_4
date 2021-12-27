@@ -14,10 +14,10 @@ import (
 	"time"
 )
 
-const (
-	batchSize    = 3
-	segmentSize  = 6
-	lowWaterMark = 3
+var (
+	batchSize    = 4
+	segmentSize  = 10
+	lowWaterMark = 4
 )
 
 type Entry struct {
@@ -28,14 +28,13 @@ type Entry struct {
 }
 
 type Log struct {
-	startIndex int
-	endIndex   int
-	currIndex  int
-	file       *os.File
-	fileName   string
-	batch      [][]byte
-	batchNum   int
-	entryNum   int
+	endIndex  int
+	currIndex int
+	file      *os.File
+	fileName  string
+	batch     [][]byte
+	batchNum  int
+	entryNum  int
 }
 
 func fileLen(file *os.File) (int64, error) {
@@ -81,7 +80,7 @@ func Create(path string) (*Log, error) {
 	if err != nil {
 		return nil, err
 	}
-	log := &Log{file: file, batch: make([][]byte, batchSize), batchNum: 0, startIndex: 0, endIndex: 0, currIndex: 0, fileName: path}
+	log := &Log{file: file, batch: make([][]byte, batchSize), batchNum: 0, endIndex: 0, currIndex: 0, fileName: path}
 	return log, err
 }
 
@@ -111,7 +110,7 @@ func Open(path string) (*Log, error) {
 	if err != nil {
 		return nil, err
 	}
-	log := &Log{file: file, batch: make([][]byte, batchSize), batchNum: 0, startIndex: 0, endIndex: index, currIndex: index, fileName: path, entryNum: entries}
+	log := &Log{file: file, batch: make([][]byte, batchSize), batchNum: 0, endIndex: index, currIndex: index, fileName: path, entryNum: entries}
 	return log, nil
 }
 
@@ -318,7 +317,6 @@ func (log *Log) checkWaterMark() error {
 			}
 		}
 		log.endIndex = 0
-		log.startIndex = 0
 	}
 	return nil
 }
@@ -443,7 +441,7 @@ func (log *Log) writeBatch() error {
 func (log *Log) ReadAll() ([]Entry, error) {
 	var entries []Entry
 
-	for i := log.startIndex; i <= log.endIndex; i++ {
+	for i := 0; i <= log.endIndex; i++ {
 		file, err := os.Open("wal/" + log.fileName + "_" + strconv.Itoa(i))
 		defer file.Close()
 		if err != nil {
@@ -514,7 +512,7 @@ func (log *Log) ReadAll() ([]Entry, error) {
 
 func (log *Log) ReadAt(index int) (*Entry, error) {
 	j := 0
-	for i := log.startIndex; i <= log.endIndex; i++ {
+	for i := 0; i <= log.endIndex; i++ {
 		file, err := os.Open("wal/" + log.fileName + "_" + strconv.Itoa(i))
 		defer file.Close()
 		if err != nil {
@@ -635,7 +633,52 @@ func ClearWALFolder() {
 	}
 }
 
+func LoadConfigurations() error {
+	config, err := os.Open("config.txt")
+	if err != nil {
+		return err
+	}
+	_, err = config.Seek(10, 0)
+	if err != nil {
+		return err
+	}
+	data := make([]byte, 1)
+	_, err = config.Read(data)
+	if err != nil {
+		return err
+	}
+	batchSize = int(data[0]) - 48
+
+	_, err = config.Seek(14, 1)
+	if err != nil {
+		return err
+	}
+	data = make([]byte, 1)
+	_, err = config.Read(data)
+	if err != nil {
+		return err
+	}
+	segmentSize = int(data[0]) - 48
+
+	_, err = config.Seek(15, 1)
+	if err != nil {
+		return err
+	}
+	data = make([]byte, 1)
+	_, err = config.Read(data)
+	if err != nil {
+		return err
+	}
+	lowWaterMark = int(data[0]) - 48
+	return nil
+}
+
 func test() {
+	err := LoadConfigurations()
+	if os.IsNotExist(err) {
+		fmt.Println("config.txt ne postoji, u upotrebi su podrazumevana podešavanja.")
+	}
+
 	ClearWALFolder()
 
 	log, err := Create("wal")
