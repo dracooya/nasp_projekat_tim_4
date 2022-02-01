@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+//Put funkcija
+//prosledjuje se niz kljuceva od kojih se formira bloom filter, ocekivani broj elemenata(max) i "tacnost"
 func NewBloom(keys []int, expectedElements int, falsePositiveRate float64) ([]int, []hash.Hash32) {
 	m := CalculateM(expectedElements, falsePositiveRate)
 	k := CalculateK(expectedElements, m)
@@ -23,6 +25,7 @@ func NewBloom(keys []int, expectedElements int, falsePositiveRate float64) ([]in
 	return bloom, hashes
 }
 
+//Funkcija se koristi u NewBloom, ali ako je potrebno uneti samo jedan kljuc moze biti korisna
 func AddKey(bloom []int, key int, hashes []hash.Hash32) {
 	for _, oneHash := range hashes {
 		hashed := oneHash.Sum([]byte(strconv.Itoa(key)))
@@ -32,6 +35,8 @@ func AddKey(bloom []int, key int, hashes []hash.Hash32) {
 	}
 }
 
+//Get funkcija proverava postojanje kljuca u bloom filteru
+//potrebno proslediti bloom filter, kljuc koji se trazi i hash funkcije generisane "CreateHashFunctions"metodom
 func IsInBloom(bloom []int, key int, hashes []hash.Hash32) bool {
 	for _, oneHash := range hashes {
 		hashed := oneHash.Sum([]byte(strconv.Itoa(key)))
@@ -44,6 +49,7 @@ func IsInBloom(bloom []int, key int, hashes []hash.Hash32) bool {
 	return true
 }
 
+//Pomocne metode
 func CalculateM(expectedElements int, falsePositiveRate float64) uint {
 	return uint(math.Ceil(float64(expectedElements) * math.Abs(math.Log(falsePositiveRate)) / math.Pow(math.Log(2), float64(2))))
 }
