@@ -1,5 +1,0 @@
-batchSize=3
-segmentSize=6
-lowWaterMark=3
-tokens=100
-minutes=1
