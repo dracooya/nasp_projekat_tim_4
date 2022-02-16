@@ -179,7 +179,7 @@ func countEntries(file *os.File) (int, error) {
 	}
 }
 
-func formBytesPut(key string, value []byte) []byte {
+func FormBytesPut(key string, value []byte) []byte {
 	bytes := make([]byte, 29+len(key)+len(value))                              // 4+8+1+8+8 = 29 dužina jednog entry-a write ahead loga bez ključa batchNum vrednosti
 	binary.LittleEndian.PutUint32(bytes[:4], CRC32([]byte(key)))               // CRC - 4B
 	binary.LittleEndian.PutUint64(bytes[4:12], uint64(time.Now().UnixMicro())) // Timestamp - 8B
@@ -196,7 +196,7 @@ func formBytesPut(key string, value []byte) []byte {
 	return bytes
 }
 
-func formBytesDelete(key string) []byte {
+func FormBytesDelete(key string) []byte {
 	bytes := make([]byte, 21+len(key))                                         // 4+8+1+8 = 21 dužina jednog entry-a write ahead loga bez ključa, vrednosti ali batchNum value size-a jer je ovde nepotreban
 	binary.LittleEndian.PutUint32(bytes[:4], CRC32([]byte(key)))               // CRC - 4B
 	binary.LittleEndian.PutUint64(bytes[4:12], uint64(time.Now().UnixMicro())) // Timestamp - 8B
@@ -279,7 +279,7 @@ func (log *Log) WritePutDirect(key string, value []byte) error {
 }
 
 func (log *Log) writePutDirect(key string, value []byte) error {
-	bytes := formBytesPut(key, value)
+	bytes := FormBytesPut(key, value)
 
 	err := mmapAppend(log.file, bytes)
 	if err != nil {
@@ -290,7 +290,7 @@ func (log *Log) writePutDirect(key string, value []byte) error {
 }
 
 func (log *Log) WritePutBuffer(key string, value []byte) error {
-	bytes := formBytesPut(key, value)
+	bytes := FormBytesPut(key, value)
 	err := log.writeBuffer(bytes)
 	if err != nil {
 		return err
@@ -340,7 +340,7 @@ func (log *Log) WriteDeleteDirect(key string) error {
 }
 
 func (log *Log) writeDeleteDirect(key string) error {
-	bytes := formBytesDelete(key)
+	bytes := FormBytesDelete(key)
 
 	err := mmapAppend(log.file, bytes)
 	if err != nil {
@@ -351,7 +351,7 @@ func (log *Log) writeDeleteDirect(key string) error {
 }
 
 func (log *Log) WriteDeleteBuffer(key string) error {
-	bytes := formBytesDelete(key)
+	bytes := FormBytesDelete(key)
 	err := log.writeBuffer(bytes)
 	if err != nil {
 		return err
