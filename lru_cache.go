@@ -67,6 +67,19 @@ func (cache *Cache) Insert(key string,value []byte) bool {
 	}
 }
 
+//Kada se uputi delete zahtev, ako kljuca ima u cache - u, on se brise
+//prima kljuc koji se brise
+func (cache *Cache) DeleteKey(key string){
+	value := cache.Search(key)
+	if value != nil{
+		cache.cache_list.Remove(value)
+		delete(cache.cache_map,key)
+
+	}else{
+		println("Kljuc ne postoji u cache-u!")
+	}
+}
+
 
 /*Testiranje - brise se u izvrsnoj verziji*/
 func main(){
@@ -87,5 +100,9 @@ func main(){
 	cache.printCache()
 	println(cache.Search("1"))
 	println(string(cache.Search("2").Value.(KV).value))
+	cache.printCache()
+	cache.DeleteKey("4")
+	cache.printCache()
+	cache.Search("3")
 	cache.printCache()
 }
