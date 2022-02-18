@@ -50,21 +50,25 @@ func (cache *Cache) printCache(){
 	println()
 }
 
+
 /*Dodavanje stavke u cache
 Prosledjuje se kljuc sa njemu pridruzenom vrednoscu*/
-func (cache *Cache) Insert(key string,value []byte) bool {
-	if cache.Search(key) == nil{
+func (cache *Cache) Insert(key string,value []byte){
+	found := cache.Search(key)
+	if found == nil{
 		if cache.cache_list.Len() == cache.cache_limit{
 			lru := cache.cache_list.Front()
 			cache.cache_list.Remove(lru)
 			delete(cache.cache_map,lru.Value.(KV).key)
 		}
-		element := cache.cache_list.PushBack(KV{key:key,value: value})
-		cache.cache_map[key] = element
-		return true
+
+
 	} else{
-		return false
+		//Azurirace se vrednost pod zadatim kljucem - prethodna se brise
+		cache.cache_list.Remove(found)
 	}
+	element := cache.cache_list.PushBack(KV{key:key,value: value})
+	cache.cache_map[key] = element
 }
 
 //Kada se uputi delete zahtev, ako kljuca ima u cache - u, on se brise
