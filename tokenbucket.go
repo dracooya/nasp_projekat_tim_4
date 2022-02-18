@@ -73,6 +73,12 @@ func LoadConfig() error {
 	return nil
 }
 
+// InitializeTokenBucketConfigs - funkcija koja inicijalizuje konfiguracije potrebne za funkcionisanje token bucket-a
+func InitializeTokenBucketConfigs(tokensPerReset_ uint32, minutesBeforeReset_ uint32) {
+	tokensPerReset = tokensPerReset_
+	minutesBeforeReset = minutesBeforeReset_
+}
+
 // CheckTokenBucket - funkcija koja implementira token bucket algoritam
 // TODO: zameniti koriscenje ove mape sa koriscenjem get i put funkcija za sistem kada budu dodate
 func CheckTokenBucket(user string) bool {

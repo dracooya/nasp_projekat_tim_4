@@ -631,6 +631,7 @@ func (log *Log) ReadAt(index int) (*Entry, error) {
 	return nil, ErrOutOfBounds
 }
 
+// ClearWALFolder - funkcija koja cisti folder koji sadrzi sve WAL segmente
 func ClearWALFolder() {
 	err := os.RemoveAll("wal/")
 	if err != nil {
@@ -638,6 +639,7 @@ func ClearWALFolder() {
 	}
 }
 
+// LoadConfigurations - funkcija koja ucitava sve inicijalne konfiguracije wal-a
 func LoadConfigurations() error {
 	config, err := os.Open("config.txt")
 	if err != nil {
@@ -667,6 +669,13 @@ func LoadConfigurations() error {
 		return err
 	}
 	return nil
+}
+
+// InitializeWALConfigs - funkcija koja inicijalizuje konfiguracije potrebne za funkcionisanje wal-a
+func InitializeWALConfigs(batchSize_ int, segmentSize_ int, lowWaterMark_ int) {
+	batchSize = batchSize_
+	segmentSize = segmentSize_
+	lowWaterMark = lowWaterMark_
 }
 
 func test() {
