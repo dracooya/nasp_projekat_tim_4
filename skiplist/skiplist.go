@@ -98,15 +98,15 @@ func (s *SkipList) GetElement(key string) *SkipListNode{
 
 /*Funkcija dodaje element u skip listu
 Prima niz bajtova u formatu kao i WAL*/
-//Vraca status izvrsenja - true = uspesno, false = neuspesno (kljuc vec postoji u strukturi)
+//Vraca status izvrsenja - true = uspesno, false = neuspesno
 func (s *SkipList) AddElement(input []byte) bool {
 
 	key_size := binary.LittleEndian.Uint64(input[13:21])
 	key := string(input[29:29 + key_size])
+	found := s.GetElement(key)
 
-	//Element nije vec prisutan u strukturi
-	if s.GetElement(key) == nil {
-		//println("nope")
+	//Element nije prethodno upisan u strukturu
+	if found == nil {
 		max_level := s.roll()
 		//println(key + " se propagira do " + strconv.Itoa(max_level) + ". nivoa.")
 		new_node := &SkipListNode{
@@ -136,10 +136,12 @@ func (s *SkipList) AddElement(input []byte) bool {
 		s.size += 1
 		return true
 	} else {
-		//fmt.Println("Vec postoji!")
-		return false
+		//Menjamo vrednost pod postojecim kljucem
+		found.Input = input
+		return true
 
 	}
+	return false
 }
 
 /*Funkcija brise element iz skip liste - postavlja tombstone podatka na 1

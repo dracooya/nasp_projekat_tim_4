@@ -55,7 +55,7 @@ func (m *Memtable) PutElement(input []byte) bool{
 		m.curr_size += 1
 		return true
 	} else{
-		println("Kljuc je vec u memtabeli!")
+		//Menjamo vrednost elementa
 		return false
 	}
 }
