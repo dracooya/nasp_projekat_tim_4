@@ -5,6 +5,7 @@ import (
 	"bloom/index"
 	"bloom/summary"
 	"encoding/binary"
+	"errors"
 	"log"
 	"os"
 	"sort"
@@ -19,9 +20,11 @@ type Entry struct {
 }
 
 //Main funkcija za upis i kreiranje svih potrebnih fajlova i direktorijuma jedne SSTabele
-func MakeTable(memTable [][]byte, name string) {
+func MakeTable(memTable [][]byte, level int) {
 	//crc 4,timestamp 8,tombstone 1, keySize 8, valueSize 8, key, value
 	//Popunjavanje entys
+	last := FindLastFile(level)
+	name := strconv.Itoa(level) + "_" + strconv.Itoa(last)
 	entrys := make([]Entry, 0)
 
 	for _, i := range memTable {
@@ -79,8 +82,7 @@ func Find(key string, max int) ([]byte, bool) {
 	for i := 1; i < max; i++ {
 		for j := 1; ; j++ {
 			name := strconv.Itoa(i) + "_" + strconv.Itoa(j)
-			_, err := os.OpenFile("data/SSTable"+name+"/SSTable"+name+".txt", os.O_RDONLY, 0666)
-			if err != nil {
+			if _, err := os.Stat("data/SSTable" + name + "/SSTable" + name + ".txt"); errors.Is(err, os.ErrNotExist) {
 				break
 			}
 			filter, seeds := bloom.LoadBool(name)
@@ -103,8 +105,7 @@ func Delete(key string, max int) bool {
 	for i := 1; i < max; i++ {
 		for j := 1; ; j++ {
 			name := strconv.Itoa(i) + "_" + strconv.Itoa(j)
-			_, err := os.OpenFile("data/SSTable"+name+"/SSTable"+name+".txt", os.O_RDONLY, 0666)
-			if err != nil {
+			if _, err := os.Stat("data/SSTable" + name + "/SSTable" + name + ".txt"); errors.Is(err, os.ErrNotExist) {
 				break
 			}
 			filter, seeds := bloom.LoadBool(name)
@@ -265,5 +266,14 @@ func createFiles(name string) {
 	}
 	if err := os.Truncate("data/SSTable"+name+"/SSTable"+name+".txt", 0); err != nil {
 		log.Printf("Failed to truncate: %v", err)
+	}
+}
+
+func FindLastFile(level int) int {
+	for j := 1; ; j++ {
+		name := strconv.Itoa(level) + "_" + strconv.Itoa(j)
+		if _, err := os.Stat("data/SSTable" + name); errors.Is(err, os.ErrNotExist) {
+			return j
+		}
 	}
 }
