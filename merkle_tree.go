@@ -140,7 +140,7 @@ func deserialize(file_name string) [][]byte{
 	return result_list
 }
 
-func main(){
+/*func main(){
 	var podaci = []Data{Data{value:"a"},Data{value:"b"},Data{value:"c"},Data{value:"d"}}
 	var node_list = toNodeList(podaci)
 	var mr = BuildMerkle(node_list)
@@ -151,4 +151,4 @@ func main(){
 	for _,value := range result{
 		println(hex.EncodeToString(value))
 	}
-}
+}*/

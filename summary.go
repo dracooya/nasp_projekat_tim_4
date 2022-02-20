@@ -1,4 +1,4 @@
-package summary
+package main
 
 import (
 	"encoding/binary"
@@ -32,7 +32,7 @@ func NewSummary(keys []string, keyLen []uint64, name string) {
 	}
 }
 
-func Find(key string, name string) (uint64, bool) {
+func FindSummary(key string, name string) (uint64, bool) {
 	file, err := os.Open("data/SSTable" + name + "/summary" + name + ".txt")
 	defer file.Close()
 	if err != nil {

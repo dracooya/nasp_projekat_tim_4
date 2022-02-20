@@ -2,12 +2,12 @@ package main
 
 import (
 	"encoding/binary"
-	sl "memtable/skiplist"
+
 )
 
 
 type Memtable struct {
-	structure *sl.SkipList
+	structure *SkipList
 	max_size int
 	curr_size int
 	threshold float32
@@ -20,7 +20,7 @@ type Memtable struct {
 
 func NewMemtable(max_s int,thresh float32) *Memtable{
 	return &Memtable{
-		structure: sl.NewSkipList(),
+		structure: NewSkipList(),
 		max_size: max_s,
 		threshold: thresh,
 		curr_size: 0,
@@ -75,7 +75,7 @@ Matrica bajtova se vraca zato sto svaki zapis u memtabeli predstavlja niz bajtov
 func (m *Memtable) Flush() [][]byte{
 	ret_val := m.structure.GetAll()
 	m.curr_size = 0
-	m.structure = sl.NewSkipList()
+	m.structure = NewSkipList()
 	//TODO: Sprovesti ret_val do SSTabele za upis
 	return ret_val
 }

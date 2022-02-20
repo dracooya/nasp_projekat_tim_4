@@ -1,9 +1,7 @@
-package SSTable
+package main
 
 import (
-	"bloom/bloom"
-	"bloom/index"
-	"bloom/summary"
+
 	"encoding/binary"
 	"errors"
 	"log"
@@ -54,8 +52,8 @@ func MakeTable(memTable [][]byte, level int) {
 	createFiles(name)
 
 	//Kreiranje bloom filtera, a zatim i upis
-	filter, seeds := bloom.NewBloom(keys, 0.1)
-	bloom.WriteBloom(filter, seeds, name)
+	filter, seeds := NewBloom(keys, 0.1)
+	WriteBloom(filter, seeds, name)
 	//test za bloom
 	//bl, seed := bloom.LoadBool(name)
 	//fmt.Println(bloom.IsInBloom(bl, "key5", seed))
@@ -65,14 +63,14 @@ func MakeTable(memTable [][]byte, level int) {
 	for i, j := range entrys {
 		entrysLen[i] = uint64(len(j.value))
 	}
-	index.NewIndex(entrysLen, name)
+	NewIndex(entrysLen, name)
 
 	//Upis summaty na disk
 	keyLen := make([]uint64, len(entrys))
 	for i, j := range entrys {
 		keyLen[i] = j.keyLen
 	}
-	summary.NewSummary(keys, keyLen, name)
+	NewSummary(keys, keyLen, name)
 
 	//Make SSTabe file
 	writeSSTable(entrys, name)
@@ -85,11 +83,11 @@ func Find(key string, max int) ([]byte, bool) {
 			if _, err := os.Stat("data/SSTable" + name + "/SSTable" + name + ".txt"); errors.Is(err, os.ErrNotExist) {
 				break
 			}
-			filter, seeds := bloom.LoadBool(name)
-			if bloom.IsInBloom(filter, key, seeds) {
-				offset, found := summary.Find(key, name)
+			filter, seeds := LoadBool(name)
+			if IsInBloom(filter, key, seeds) {
+				offset, found := FindSummary(key, name)
 				if found {
-					offset = index.Find(offset, name)
+					offset = FindIndex(offset, name)
 					if found {
 						return findInTable(offset, name)
 					}
@@ -108,11 +106,11 @@ func Delete(key string, max int) bool {
 			if _, err := os.Stat("data/SSTable" + name + "/SSTable" + name + ".txt"); errors.Is(err, os.ErrNotExist) {
 				break
 			}
-			filter, seeds := bloom.LoadBool(name)
-			if bloom.IsInBloom(filter, key, seeds) {
-				offset, found := summary.Find(key, name)
+			filter, seeds := LoadBool(name)
+			if IsInBloom(filter, key, seeds) {
+				offset, found := FindSummary(key, name)
 				if found {
-					offset = index.Find(offset, name)
+					offset = FindIndex(offset, name)
 					if found {
 						_, found = findInTable(offset, name)
 						if found { //Same as Find()

@@ -86,9 +86,9 @@ func (cache *Cache) DeleteKey(key string){
 
 
 /*Testiranje - brise se u izvrsnoj verziji*/
-func main(){
+/*func main(){
 	cache := createCache(3)
-	/*println(cache.Search("1").Value.(string))*/
+	/*println(cache.Search("1").Value.(string))
 	cache.printCache()
 	cache.Insert("1",[]byte("maja"))
 	cache.printCache()
@@ -109,4 +109,4 @@ func main(){
 	cache.printCache()
 	cache.Search("3")
 	cache.printCache()
-}
+}*/

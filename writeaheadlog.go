@@ -1,4 +1,4 @@
-package writeaheadlog
+package main
 
 import (
 	"bufio"
@@ -25,7 +25,7 @@ var (
 	ErrNotFound    = errors.New("file not found")
 )
 
-type Entry struct {
+type EntryWAL struct {
 	key       string
 	value     []byte
 	tombstone byte
@@ -443,8 +443,8 @@ func (log *Log) writeBatch() error {
 	return nil
 }
 
-func (log *Log) ReadAll() ([]Entry, error) {
-	var entries []Entry
+func (log *Log) ReadAll() ([]EntryWAL, error) {
+	var entries []EntryWAL
 
 	for i := 0; i <= log.endIndex; i++ {
 		file, err := os.Open("wal/" + log.fileName + "_" + strconv.Itoa(i))
@@ -454,7 +454,7 @@ func (log *Log) ReadAll() ([]Entry, error) {
 		}
 
 		for {
-			entry := Entry{}
+			entry := EntryWAL{}
 
 			var data = make([]byte, 21)
 
@@ -515,7 +515,7 @@ func (log *Log) ReadAll() ([]Entry, error) {
 	return entries, nil
 }
 
-func (log *Log) ReadAt(index int) (*Entry, error) {
+func (log *Log) ReadAt(index int) (*EntryWAL, error) {
 	j := 0
 	for i := 0; i <= log.endIndex; i++ {
 		file, err := os.Open("wal/" + log.fileName + "_" + strconv.Itoa(i))
@@ -568,7 +568,7 @@ func (log *Log) ReadAt(index int) (*Entry, error) {
 					return nil, ErrCorrupted
 				}
 			} else {
-				entry := Entry{}
+				entry := EntryWAL{}
 
 				var data = make([]byte, 21)
 

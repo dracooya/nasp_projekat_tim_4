@@ -1,4 +1,4 @@
-package bloom
+package main
 
 import (
 	"github.com/spaolacci/murmur3"
