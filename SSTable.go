@@ -1,7 +1,9 @@
-package main
+package SSTable
 
 import (
-
+	"bloom/bloom"
+	"bloom/index"
+	"bloom/summary"
 	"encoding/binary"
 	"errors"
 	"log"
@@ -52,8 +54,8 @@ func MakeTable(memTable [][]byte, level int) {
 	createFiles(name)
 
 	//Kreiranje bloom filtera, a zatim i upis
-	filter, seeds := NewBloom(keys, 0.1)
-	WriteBloom(filter, seeds, name)
+	filter, seeds := bloom.NewBloom(keys, 0.1)
+	bloom.WriteBloom(filter, seeds, name)
 	//test za bloom
 	//bl, seed := bloom.LoadBool(name)
 	//fmt.Println(bloom.IsInBloom(bl, "key5", seed))
@@ -63,14 +65,14 @@ func MakeTable(memTable [][]byte, level int) {
 	for i, j := range entrys {
 		entrysLen[i] = uint64(len(j.value))
 	}
-	NewIndex(entrysLen, name)
+	index.NewIndex(entrysLen, name)
 
 	//Upis summaty na disk
 	keyLen := make([]uint64, len(entrys))
 	for i, j := range entrys {
 		keyLen[i] = j.keyLen
 	}
-	NewSummary(keys, keyLen, name)
+	summary.NewSummary(keys, keyLen, name)
 
 	//Make SSTabe file
 	writeSSTable(entrys, name)
@@ -78,16 +80,13 @@ func MakeTable(memTable [][]byte, level int) {
 
 func Find(key string, max int) ([]byte, bool) {
 	for i := 1; i < max; i++ {
-		for j := 1; ; j++ {
+		for j := FindLastFile(i) - 1; j > 0; j-- {
 			name := strconv.Itoa(i) + "_" + strconv.Itoa(j)
-			if _, err := os.Stat("data/SSTable" + name + "/SSTable" + name + ".txt"); errors.Is(err, os.ErrNotExist) {
-				break
-			}
-			filter, seeds := LoadBool(name)
-			if IsInBloom(filter, key, seeds) {
-				offset, found := FindSummary(key, name)
+			filter, seeds := bloom.LoadBool(name)
+			if bloom.IsInBloom(filter, key, seeds) {
+				offset, found := summary.Find(key, name)
 				if found {
-					offset = FindIndex(offset, name)
+					offset = index.Find(offset, name)
 					if found {
 						return findInTable(offset, name)
 					}
@@ -101,16 +100,13 @@ func Find(key string, max int) ([]byte, bool) {
 
 func Delete(key string, max int) bool {
 	for i := 1; i < max; i++ {
-		for j := 1; ; j++ {
+		for j := FindLastFile(i) - 1; j > 0; j-- {
 			name := strconv.Itoa(i) + "_" + strconv.Itoa(j)
-			if _, err := os.Stat("data/SSTable" + name + "/SSTable" + name + ".txt"); errors.Is(err, os.ErrNotExist) {
-				break
-			}
-			filter, seeds := LoadBool(name)
-			if IsInBloom(filter, key, seeds) {
-				offset, found := FindSummary(key, name)
+			filter, seeds := bloom.LoadBool(name)
+			if bloom.IsInBloom(filter, key, seeds) {
+				offset, found := summary.Find(key, name)
 				if found {
-					offset = FindIndex(offset, name)
+					offset = index.Find(offset, name)
 					if found {
 						_, found = findInTable(offset, name)
 						if found { //Same as Find()
