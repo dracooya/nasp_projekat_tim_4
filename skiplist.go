@@ -28,12 +28,17 @@ type SkipListNode struct {
 /*Funkcija kreira novu praznu skiplistu
 Interni dogovor - max visina skip liste je 32 - podrzava 2^32 vrednosti*/
 func NewSkipList() *SkipList {
+
+	in := make([]byte,30)
+	binary.LittleEndian.PutUint64(in[13:21],1)	//key size praznog stringa je 1
+	binary.LittleEndian.PutUint64(in[29:30],0)	//a vrednost 0
+	//kada se konvertuje u string dobija se ""
 	return &SkipList{
 		maxHeight: 32,
 		height: 0,
 		size: 0,
 		head: &SkipListNode{
-			Input: make([]byte,0),
+			Input: in,
 			next: make([]*SkipListNode,32),
 		},
 	}

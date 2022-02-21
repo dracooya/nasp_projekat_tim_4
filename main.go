@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -211,8 +212,11 @@ func (config *ConfigObj)PrintConfig(){
 }
 
 func main(){
-	config := Default()
+	/*config := Default()
 	config.ReadConfig("config.txt")
-	config.PrintConfig()
+	config.PrintConfig()*/
+	idk:= []byte{0}
+	line := string(idk)
+	fmt.Println(line)
 }
 

@@ -3,28 +3,18 @@ package main
 import (
 	"crypto/sha1"
 	"encoding/binary"
-	"encoding/hex"
 	"io/ioutil"
 	"os"
 )
 
-/*TODO:Prilagoditi sve ka Data segment formatu*/
 type Data struct{
-	/*crc [4]byte
-	timestamp [8]byte
-	tombstone [1]byte
-	value_size [8]byte
-	value []byte*/
-	value string
+	value []byte
 }
 
 type MerkleRoot struct {
 	root *Node
 }
 
-func (mr *MerkleRoot) String() string{
-	return mr.root.String()
-}
 
 /*Ukoliko je data prazan niz bajtova -> Node je prazan, tj. dodaje se zbog kompletnosti stabla*/
 /*data cuva hash vrednosti!*/
@@ -34,9 +24,6 @@ type Node struct {
 	right *Node
 }
 
-func (n *Node) String() string {
-	return hex.EncodeToString(n.data[:])
-}
 
 func Hash(data []byte) [20]byte {
 	return sha1.Sum(data)
@@ -51,7 +38,7 @@ func hash_pairs(node_1 *Node ,node_2 *Node) [20]byte{
 	return Hash(append(node_1.data[:],right_hash[:]...))
 }
 
-/*Rekurzivno boottom-up konstruisanje merkle stabla */
+/*Rekurzivno bottom-up konstruisanje merkle stabla */
 func BuildMerkle(data []Node) *MerkleRoot {
 	var nodes []Node
 	for i :=  0; i < len(data); i+=2 {
@@ -75,7 +62,7 @@ func BuildMerkle(data []Node) *MerkleRoot {
 func toNodeList(data []Data) []Node{
 	var node_list = []Node{}
 	for _,elem := range data{
-		node_list = append(node_list,Node{left:nil,right:nil,data:Hash([]byte(elem.value))})
+		node_list = append(node_list,Node{left:nil,right:nil,data:Hash(elem.value)})
 	}
 	return node_list
 }
