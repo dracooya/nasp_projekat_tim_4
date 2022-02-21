@@ -1,7 +1,7 @@
 package kompakcije
 
 import (
-	"bloom/SSTable"
+	"main/SSTable"
 	"encoding/binary"
 	"errors"
 	"log"
@@ -17,13 +17,13 @@ type entry struct {
 	loaded    bool
 }
 
-func Kompakcija(merge int, maxLevel int) {
+func Kompakcija(merge int, maxLevel int,bloomPer float64) {
 	//1 iteration for every level
 	for level := 1; level < maxLevel; level++ {
 		last := FindLastFile(level)
 		//Try to merge until can't
 		for next := true; next; {
-			next = mergeTables(merge, level)
+			next = mergeTables(merge, level,bloomPer)
 			//Delete merged tables
 			if next {
 				tidyLevel(level, merge, last)
@@ -32,7 +32,7 @@ func Kompakcija(merge int, maxLevel int) {
 	}
 }
 
-func mergeTables(merge int, level int) bool {
+func mergeTables(merge int, level int,bloomPer float64) bool {
 	//Slice of files to merge
 	files, err := loadTables(merge, level)
 	if err {
@@ -42,7 +42,7 @@ func mergeTables(merge int, level int) bool {
 	//Data for the new table
 	newTableData := fillData(files)
 	closeFiles(files)
-	SSTable.MakeTable(newTableData, level+1)
+	SSTable.MakeTable(newTableData, level+1,bloomPer)
 	return true
 }
 
