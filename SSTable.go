@@ -20,7 +20,7 @@ type Entry struct {
 }
 
 //Main funkcija za upis i kreiranje svih potrebnih fajlova i direktorijuma jedne SSTabele
-func MakeTable(memTable [][]byte, level int) {
+func MakeTable(memTable [][]byte, level int, bloomPer float64) {
 	//crc 4,timestamp 8,tombstone 1, keySize 8, valueSize 8, key, value
 	//Popunjavanje entys
 	last := FindLastFile(level)
@@ -54,7 +54,7 @@ func MakeTable(memTable [][]byte, level int) {
 	createFiles(name)
 
 	//Kreiranje bloom filtera, a zatim i upis
-	filter, seeds := bloom.NewBloom(keys, 0.1)
+	filter, seeds := bloom.NewBloom(keys, bloomPer)
 	bloom.WriteBloom(filter, seeds, name)
 	//test za bloom
 	//bl, seed := bloom.LoadBool(name)

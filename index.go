@@ -1,4 +1,4 @@
-package main
+package index
 
 import (
 	"encoding/binary"
@@ -30,7 +30,7 @@ func NewIndex(entrysLen []uint64, name string) {
 	}
 }
 
-func FindIndex(offset uint64, name string) uint64 {
+func Find(offset uint64, name string) uint64 {
 	file, err := os.Open("data/SSTable" + name + "/index" + name + ".txt")
 	defer file.Close()
 	if err != nil {
