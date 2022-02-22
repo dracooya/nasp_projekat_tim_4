@@ -30,7 +30,7 @@ func (m *Memtable) GetElement(key string) []byte {
 
 	node := m.structure.GetElement(key)
 	if node == nil {
-		println("Nema zadatog kljuca u memtabeli!")
+		//println("Nema zadatog kljuca u memtabeli!")
 		return nil
 	} else {
 		key_size := binary.LittleEndian.Uint64(node.Input[13:21])
@@ -55,7 +55,7 @@ func (m *Memtable) PutElement(input []byte) (bool, error) {
 /*Funkcija brise podatak pod zadatim kljucem iz memtabele
 Vraca status izvrsenja*/
 func (m *Memtable) DeleteElement(key string) bool {
-	if m.DeleteElement(key) == true {
+	if m.structure.DeleteElement(key) == true {
 		return true
 	} else {
 		return false

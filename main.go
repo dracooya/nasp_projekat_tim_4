@@ -59,16 +59,19 @@ func (sys *System) put(user string, key string, value []byte) bool {
 		return false
 	}
 
-	full_percent := 0
+	var full_percent float64
+	full_percent = 0
 	if sys.memtable.curr_size != 0 {
-		full_percent = (sys.memtable.max_size / sys.memtable.curr_size) * 100
+		full_percent = (float64(sys.memtable.curr_size) / float64(sys.memtable.max_size)) * 100
 	}
 
-	if float64(full_percent) >= sys.memtable.threshold {
+	if full_percent >= sys.memtable.threshold {
+		println("puno")
 		data, err := sys.memtable.Flush()
-		if err != nil {
+		if err == nil {
 			SSTable.MakeTable(data, 1, sys.config.bloom_precision)
 		} else {
+			fmt.Println(err)
 			return false
 		}
 	}
@@ -96,18 +99,22 @@ func (sys *System) get(user string, key string) []byte {
 		if cache_val == nil {
 			value, found := SSTable.Find(key, sys.config.max_height)
 			if found {
+				//print("iz ss-a je.")
 				sys.cache.Insert(key, value)
 				return value
 			} else {
 				return nil
 			}
 		} else {
+			//print("iz kesa je.")
 			return cache_val.Value.(KV).value
 		}
 	} else {
+		//print("iz mema je.")
 		sys.cache.Insert(key, mem_val)
 		return mem_val
 	}
+	return nil
 
 }
 
@@ -325,11 +332,29 @@ func main() {
 	}
 
 	system = CreateSystem()
-	println(system.put("test", "1", []byte("prvi test")))
-	/*system.put("test", "2", []byte("drugi test"))
-	system.put("test", "1", []byte("prvi test"))
-	fmt.Println(system.get("test", "2"))
-	system.Delete("test", "2")
+
+	/*println(system.put("test", "2", []byte("izmena")))
+	println(system.put("test", "11", []byte("prvi testt")))
+	println(system.put("test", "33", []byte("treci testt")))
+	println(system.put("test", "44", []byte("cetvrti testt")))*/
+	//println(system.Delete("test", "2"))
+	//println(string(system.get("test", "2")))
+	//kompakcije.Kompakcija(system.config.compaction_size,system.config.max_height,system.config.bloom_precision)
+	//println(string(system.get("test", "2")))
+	//println(string(system.get("test", "2")))
+	//println(system.put("test", "", []byte("cetvrti test")))
+	/*println(string(system.get("test", "2")))
+	println(system.put("test", "67", []byte("prvi testt")))
+	println(string(system.get("test", "67")))
+	println(system.put("test", "67", []byte("izmena")))
+	println(string(system.get("test", "67")))*/
+	/*system.cache.printCache()
+	println(string(system.get("test", "2")))
+	/*println(system.put("test", "5", []byte("peti test")))
+	println(string(system.get("test", "5")))
+	println(system.Delete("test", "5"))
+	println(string(system.get("test", "5")))
+	/*system.Delete("test", "2")
 	system.put("test", "2", []byte("drugi test"))
 	system.put("test", "1", []byte("prvi test"))
 	system.put("test", "2", []byte("drugi test"))

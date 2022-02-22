@@ -44,7 +44,7 @@ Ispisuje se ceo sadrzaj cache-a
 Prosledjuje se prethodno kreiran cache objekat*/
 func (cache *Cache) printCache(){
 	for e := cache.cache_list.Front(); e != nil; e = e.Next() {
-		print(string(e.Value.(KV).value )+ " ")
+		print(string(e.Value.(KV).key )+ " ")
 
 	}
 	println()
@@ -80,7 +80,7 @@ func (cache *Cache) DeleteKey(key string){
 		delete(cache.cache_map,key)
 
 	}else{
-		println("Kljuc ne postoji u cache-u!")
+		//println("Kljuc ne postoji u cache-u!")
 	}
 }
 

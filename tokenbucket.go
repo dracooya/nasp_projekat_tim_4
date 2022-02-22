@@ -79,7 +79,9 @@ func InitializeTokenBucketConfigs(tokensPerReset_ uint32, minutesBeforeReset_ ui
 
 // CheckTokenBucket - funkcija koja implementira token bucket algoritam
 func CheckTokenBucket(user string) bool {
+
 	val := system.get("", user)
+
 	if len(val) <= 0 { // ovaj korisnik prvi put pravi zahtev, dozvoli i puttuj inicijalne vrednosti za njega u mapu
 		system.put("", user, formInitialBytes())
 		return true
