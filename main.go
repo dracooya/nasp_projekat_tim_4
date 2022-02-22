@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"main/SSTable"
 	"os"
 	"strconv"
@@ -35,16 +36,23 @@ type ConfigObj struct {
 	compaction_size int //broj tabela koje se spajaju
 }
 
-func put(value []byte, wal *Log, mem Memtable, config ConfigObj) {
-	wal.writeBuffer(value)
-	mem.PutElement(value)
+func put(key string, value []byte, mem Memtable, config ConfigObj) {
+	err := log.WritePutBuffer(key, value)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	_, err = mem.PutElement(value)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 	if mem.curr_size == mem.max_size {
 		data, err := mem.Flush()
 		if err != nil {
 			panic(err)
 		}
 		SSTable.MakeTable(data, 1, config.bloom_precision)
-		//I izbrise se wal???
 	}
 }
 
@@ -59,6 +67,11 @@ func get(key string, mem Memtable, config ConfigObj) []byte {
 }
 
 func myDelete(key string, mem Memtable, config ConfigObj) bool {
+	err := log.WriteDeleteBuffer(key)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
 	//ako nije obrisano u mem tabeli
 	if SSTable.Delete(key, config.max_height) {
 		return true
@@ -243,4 +256,16 @@ func main() {
 	config := Default()
 	config.ReadConfig("config.txt")
 	config.PrintConfig()
+
+	err := InitWAL()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	err = log.Close()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
 }
