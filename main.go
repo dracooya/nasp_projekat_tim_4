@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	"fmt"
+	"main/SSTable"
 	"os"
 	"strconv"
 	"strings"
@@ -33,6 +33,38 @@ type ConfigObj struct {
 	//LSM stabla i kompakcije
 	max_height      int //max visina lsm stabla (BEZ Memtabele)
 	compaction_size int //broj tabela koje se spajaju
+}
+
+func put(value []byte, wal *Log, mem Memtable, config ConfigObj) {
+	wal.writeBuffer(value)
+	mem.PutElement(value)
+	if mem.curr_size == mem.max_size {
+		data, err := mem.Flush()
+		if err != nil {
+			panic(err)
+		}
+		SSTable.MakeTable(data, 1, config.bloom_precision)
+		//I izbrise se wal???
+	}
+}
+
+func get(key string, mem Memtable, config ConfigObj) []byte {
+	//Ako nije pronadjeno u kesu i mem tabili
+	value, found := SSTable.Find(key, config.max_height)
+	if found {
+		return value
+	} else {
+		return nil
+	}
+}
+
+func myDelete(key string, mem Memtable, config ConfigObj) bool {
+	//ako nije obrisano u mem tabeli
+	if SSTable.Delete(key, config.max_height) {
+		return true
+	} else {
+		return false
+	}
 }
 
 //Kreira objekat sa podrazumevanim vrednostima
@@ -105,7 +137,7 @@ func (config *ConfigObj) ReadConfig(path string) {
 		pair := strings.Split(line, "=")
 		switch pair[0] {
 		case "batchSize":
-			correct, val := CheckValInt(pair[1], 0, 5)
+			correct, val := CheckValInt(pair[1], 1, 15)
 			if correct {
 				config.batch_size = val
 			} else {
@@ -113,7 +145,7 @@ func (config *ConfigObj) ReadConfig(path string) {
 			}
 
 		case "segmentSize":
-			correct, val := CheckValInt(pair[1], 0, 10)
+			correct, val := CheckValInt(pair[1], 2, 10)
 			if correct {
 				config.segment_size = val
 			} else {
@@ -121,7 +153,7 @@ func (config *ConfigObj) ReadConfig(path string) {
 			}
 
 		case "lowWaterMark":
-			correct, val := CheckValInt(pair[1], 0, 5)
+			correct, val := CheckValInt(pair[1], 2, 8)
 			if correct {
 				config.low_w_mark = val
 			} else {
@@ -137,7 +169,7 @@ func (config *ConfigObj) ReadConfig(path string) {
 			}
 
 		case "minutes":
-			correct, val := CheckValFloat(pair[1], 0.1, 10000)
+			correct, val := CheckValFloat(pair[1], 1, 10)
 			if correct {
 				config.minutes = val
 			} else {
@@ -161,14 +193,14 @@ func (config *ConfigObj) ReadConfig(path string) {
 			}
 
 		case "bloomPrecision":
-			correct, val := CheckValFloat(pair[1], 0.1, 1)
+			correct, val := CheckValFloat(pair[1], 0.000001, 0.9)
 			if correct {
 				config.bloom_precision = val
 			} else {
 				println("bloom precision neispravan. Koristi se default.")
 			}
 		case "maxHeightLSM":
-			correct, val := CheckValInt(pair[1], 1, 15)
+			correct, val := CheckValInt(pair[1], 1, 10)
 			if correct {
 				config.max_height = val
 			} else {
@@ -176,7 +208,7 @@ func (config *ConfigObj) ReadConfig(path string) {
 			}
 
 		case "compactionSize":
-			correct, val := CheckValInt(pair[1], 0, 10)
+			correct, val := CheckValInt(pair[1], 2, 10)
 			if correct {
 				config.compaction_size = val
 			} else {
@@ -208,22 +240,7 @@ func (config *ConfigObj) PrintConfig() {
 }
 
 func main() {
-	/*config := Default()
+	config := Default()
 	config.ReadConfig("config.txt")
-	config.PrintConfig()*/
-	idk := []byte{0}
-	line := string(idk)
-	fmt.Println(line)
-
-	err := InitWAL()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	err = log.Close()
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
+	config.PrintConfig()
 }

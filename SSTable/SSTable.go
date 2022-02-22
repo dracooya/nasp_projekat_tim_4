@@ -1,12 +1,12 @@
 package SSTable
 
 import (
-
 	"encoding/binary"
 	"errors"
 	"log"
 	"main/bloom"
 	"main/index"
+	"main/merkle_tree"
 	"main/summary"
 	"os"
 	"sort"
@@ -27,14 +27,18 @@ func MakeTable(memTable [][]byte, level int, bloomPer float64) {
 	last := FindLastFile(level)
 	name := strconv.Itoa(level) + "_" + strconv.Itoa(last)
 	entrys := make([]Entry, 0)
+	merkleValues := make([]merkle_tree.Data, 0)
 
 	for _, i := range memTable {
-		temp := Entry{}
-		temp.value = i
-		temp.keyLen = binary.LittleEndian.Uint64(i[13:21])
-		temp.valueLen = binary.LittleEndian.Uint64(i[21:29])
-		temp.key = string(i[29 : 29+temp.keyLen])
-		entrys = append(entrys, temp)
+		if int(i[12]) == 0 {
+			temp := Entry{}
+			temp.value = i
+			temp.keyLen = binary.LittleEndian.Uint64(i[13:21])
+			temp.valueLen = binary.LittleEndian.Uint64(i[21:29])
+			temp.key = string(i[29 : 29+temp.keyLen])
+			merkleValues = append(merkleValues, merkle_tree.Data{Value: string(i[29+temp.keyLen : 29+temp.keyLen+temp.valueLen])})
+			entrys = append(entrys, temp)
+		}
 	}
 
 	//for _, i := range entrys {
@@ -60,6 +64,12 @@ func MakeTable(memTable [][]byte, level int, bloomPer float64) {
 	//test za bloom
 	//bl, seed := bloom.LoadBool(name)
 	//fmt.Println(bloom.IsInBloom(bl, "key5", seed))
+
+	//Kreirati merkle stablo
+	var node_list = merkle_tree.ToNodeList(merkleValues)
+	var mr = merkle_tree.BuildMerkle(node_list)
+	var tree_list = merkle_tree.TreeToList(mr.Root)
+	merkle_tree.Serialize(tree_list, "data/SSTable"+name+"/metadata"+name+".txt")
 
 	//Upis indexa na disk
 	entrysLen := make([]uint64, len(entrys))
@@ -261,6 +271,15 @@ func createFiles(name string) {
 	}
 	if err := os.Truncate("data/SSTable"+name+"/SSTable"+name+".txt", 0); err != nil {
 		log.Printf("Failed to truncate: %v", err)
+	}
+	//Merkle
+	if _, err := os.Stat("data/SSTable" + name + "/metadata" + name + ".txt"); err != nil {
+		if os.IsNotExist(err) {
+			_, err := os.Create("data/SSTable" + name + "/metadata" + name + ".txt")
+			if err != nil {
+				panic(err)
+			}
+		}
 	}
 }
 
