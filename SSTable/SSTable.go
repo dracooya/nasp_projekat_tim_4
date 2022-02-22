@@ -30,13 +30,15 @@ func MakeTable(memTable [][]byte, level int, bloomPer float64) {
 	merkleValues := make([]merkle_tree.Data, 0)
 
 	for _, i := range memTable {
-		temp := Entry{}
-		temp.value = i
-		temp.keyLen = binary.LittleEndian.Uint64(i[13:21])
-		temp.valueLen = binary.LittleEndian.Uint64(i[21:29])
-		temp.key = string(i[29 : 29+temp.keyLen])
-		merkleValues = append(merkleValues, merkle_tree.Data{Value: string(i[29+temp.keyLen : 29+temp.keyLen+temp.valueLen])})
-		entrys = append(entrys, temp)
+		if int(i[12]) == 0 {
+			temp := Entry{}
+			temp.value = i
+			temp.keyLen = binary.LittleEndian.Uint64(i[13:21])
+			temp.valueLen = binary.LittleEndian.Uint64(i[21:29])
+			temp.key = string(i[29 : 29+temp.keyLen])
+			merkleValues = append(merkleValues, merkle_tree.Data{Value: string(i[29+temp.keyLen : 29+temp.keyLen+temp.valueLen])})
+			entrys = append(entrys, temp)
+		}
 	}
 
 	//for _, i := range entrys {
