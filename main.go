@@ -87,7 +87,7 @@ func Default() *ConfigObj {
 		segment_size: 6,
 		low_w_mark:   3,
 
-		tokens:  100,
+		tokens:  10,
 		minutes: 1,
 
 		cache_limit: 3,
@@ -166,7 +166,7 @@ func (config *ConfigObj) ReadConfig(path string) {
 			}
 
 		case "lowWaterMark":
-			correct, val := CheckValInt(pair[1], 2, 8)
+			correct, val := CheckValInt(pair[1], 2, 10)
 			if correct {
 				config.low_w_mark = val
 			} else {
