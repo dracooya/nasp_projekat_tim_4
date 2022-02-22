@@ -12,8 +12,6 @@ import (
 var (
 	tokensPerReset     uint32 = 60 // broj tokena koji se deli po resetu
 	minutesBeforeReset uint32 = 1  // vremenski interval posle kojeg se desava reset i punjenje baketa
-
-	m = make(map[string][]byte) // u privremenoj upotrebi dok program radi u memoriji. TODO: koristiti get/put u okviru sistema kada bude dodat
 )
 
 // vraca trenutno vreme u unix sekundama
@@ -80,21 +78,20 @@ func InitializeTokenBucketConfigs(tokensPerReset_ uint32, minutesBeforeReset_ ui
 }
 
 // CheckTokenBucket - funkcija koja implementira token bucket algoritam
-// TODO: zameniti koriscenje ove mape sa koriscenjem get i put funkcija za sistem kada budu dodate
 func CheckTokenBucket(user string) bool {
-	val := m[user]
+	val := system.get("", user)
 	if len(val) <= 0 { // ovaj korisnik prvi put pravi zahtev, dozvoli i puttuj inicijalne vrednosti za njega u mapu
-		m[user] = formInitialBytes()
+		system.put("", user, formInitialBytes())
 		return true
 	} else { // korisnik je vec pravio zahteve
 		timestamp := binary.LittleEndian.Uint64(val[:8])       // vreme proslog reseta
 		if isPast(timestamp + uint64(minutesBeforeReset)*60) { // interval je prosao, punimo token bucket ponovo i resetujemo vreme
-			m[user] = formInitialBytes()
+			system.put("", user, formInitialBytes())
 			return true
 		} else { // interval nije prosao
 			tokens := binary.LittleEndian.Uint32(val[8:])
 			if tokens >= 1 { // jos ima tokena, oduzimamo 1 token i dozvoljavamo
-				m[user] = formBytes(timestamp, tokens-1)
+				system.put("", user, formBytes(timestamp, tokens-1))
 				return true
 			} else { // nema vise tokena, zahtev odbijen
 				fmt.Println("Previse zahteva u ovom periodu vremena, zahtev odbijen. Molim Vas sacekajte.")

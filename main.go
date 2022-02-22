@@ -10,11 +10,15 @@ import (
 )
 
 //Strukture koje se nalaze u memoriji i konfiguracioni objekat sa iscitanom konfiguracijom
-type System struct{
+type System struct {
 	memtable *Memtable
-	cache 	 *Cache
-	config 	 *ConfigObj
+	cache    *Cache
+	config   *ConfigObj
 }
+
+var (
+	system *System
+)
 
 //Objekat koji ima sva podesavanja za projekat
 type ConfigObj struct {
@@ -43,8 +47,13 @@ type ConfigObj struct {
 	compaction_size int //broj tabela koje se spajaju
 }
 
-func (sys *System) put(key string, value []byte) bool {
-	err,wal_in := log.WritePutBuffer(key, value)
+func (sys *System) put(user string, key string, value []byte) bool {
+	if user != "" {
+		if !CheckTokenBucket(user) { // korisnik nema vise tokena
+			return false
+		}
+	}
+	err, wal_in := log.WritePutBuffer(key, value)
 	if err != nil {
 		fmt.Println(err)
 		return false
@@ -55,7 +64,7 @@ func (sys *System) put(key string, value []byte) bool {
 		data, err := sys.memtable.Flush()
 		if err != nil {
 			SSTable.MakeTable(data, 1, sys.config.bloom_precision)
-		} else{
+		} else {
 			return false
 		}
 	}
@@ -70,36 +79,46 @@ func (sys *System) put(key string, value []byte) bool {
 
 }
 
-func (sys *System) get(key string) []byte {
+func (sys *System) get(user string, key string) []byte {
+	if user != "" {
+		if !CheckTokenBucket(user) { // korisnik nema vise tokena
+			return nil
+		}
+	}
 	//Ako nije pronadjeno u kesu i mem tabili
 	mem_val := sys.memtable.GetElement(key)
 	if mem_val == nil {
-		cache_val := sys.cache.Search(key)	//ukoliko je podatak u cache-u,on ga automatski propagira na prvo mesto
+		cache_val := sys.cache.Search(key) //ukoliko je podatak u cache-u,on ga automatski propagira na prvo mesto
 		if cache_val == nil {
 			value, found := SSTable.Find(key, sys.config.max_height)
 			if found {
-				sys.cache.Insert(key,value)
+				sys.cache.Insert(key, value)
 				return value
 			} else {
 				return nil
 			}
-		} else{
+		} else {
 			return cache_val.Value.(KV).value
 		}
-	} else{
-		sys.cache.Insert(key,mem_val)
+	} else {
+		sys.cache.Insert(key, mem_val)
 		return mem_val
 	}
 
-
 }
 
-func (sys *System) Delete(key string) bool {
+func (sys *System) Delete(user string, key string) bool {
+	if user != "" {
+		if !CheckTokenBucket(user) { // korisnik nema vise tokena
+			return false
+		}
+	}
 	err := log.WriteDeleteBuffer(key)
 	if err != nil {
 		fmt.Println(err)
 		return false
 	}
+	sys.cache.DeleteKey(key)
 	if sys.memtable.DeleteElement(key) == false {
 		if SSTable.Delete(key, sys.config.max_height) {
 			return true
@@ -112,13 +131,13 @@ func (sys *System) Delete(key string) bool {
 }
 
 //Incijalizacija memtabele, cache-a i konfiguracionog objekta
-func CreateSystem()	*System{
+func CreateSystem() *System {
 	config_obj := Default()
 	config_obj.ReadConfig("config.txt")
 	return &System{
-		memtable : NewMemtable(config_obj.mem_max_size,config_obj.threshold),
-		cache : createCache(config_obj.cache_limit),
-		config: config_obj,
+		memtable: NewMemtable(config_obj.mem_max_size, config_obj.threshold),
+		cache:    createCache(config_obj.cache_limit),
+		config:   config_obj,
 	}
 }
 
@@ -295,15 +314,32 @@ func (config *ConfigObj) PrintConfig() {
 }
 
 func main() {
-
-	system := CreateSystem()
-	system.put("1",[]byte("prvi test"))
-
 	err := InitWAL()
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+
+	system = CreateSystem()
+	system.put("test", "1", []byte("prvi test"))
+	/*system.put("test", "2", []byte("drugi test"))
+	system.put("test", "1", []byte("prvi test"))
+	fmt.Println(system.get("test", "2"))
+	system.Delete("test", "2")
+	system.put("test", "2", []byte("drugi test"))
+	system.put("test", "1", []byte("prvi test"))
+	system.put("test", "2", []byte("drugi test"))
+	system.put("test", "1", []byte("prvi test"))
+	system.put("test", "2", []byte("drugi test"))
+	system.put("test", "1", []byte("prvi test"))
+	system.put("test", "2", []byte("drugi test"))
+	system.put("test", "1", []byte("prvi test"))
+	system.put("test", "2", []byte("drugi test"))
+	fmt.Println(system.get("test", "2"))
+	system.Delete("test", "2")
+	system.put("test3", "2", []byte("drugi test"))
+	fmt.Println(system.get("test3", "2"))
+	system.Delete("test3", "2")*/
 
 	err = log.Close()
 	if err != nil {
