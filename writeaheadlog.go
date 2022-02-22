@@ -291,13 +291,13 @@ func (log *Log) writePutDirect(key string, value []byte) error {
 	return nil
 }
 
-func (log *Log) WritePutBuffer(key string, value []byte) error {
+func (log *Log) WritePutBuffer(key string, value []byte) (error,[]byte) {
 	bytes := FormBytesPut(key, value)
 	err := log.writeBuffer(bytes)
 	if err != nil {
-		return err
+		return err,nil
 	}
-	return nil
+	return nil,bytes
 }
 
 func (log *Log) WriteDeleteDirect(key string) error {
@@ -777,12 +777,12 @@ func test() {
 		return
 	}
 
-	err = log.WritePutBuffer("c", []byte{10, 12, 13, 15})
+	err,_ = log.WritePutBuffer("c", []byte{10, 12, 13, 15})
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	err = log.WritePutBuffer("d", []byte{1, 12})
+	err,_ = log.WritePutBuffer("d", []byte{1, 12})
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -831,12 +831,12 @@ func test() {
 		fmt.Println(err)
 		return
 	}
-	err = log.WritePutBuffer("c", []byte{10, 12, 13, 15})
+	err,_ = log.WritePutBuffer("c", []byte{10, 12, 13, 15})
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	err = log.WritePutBuffer("d", []byte{1, 12})
+	err,_ = log.WritePutBuffer("d", []byte{1, 12})
 	if err != nil {
 		fmt.Println(err)
 		return

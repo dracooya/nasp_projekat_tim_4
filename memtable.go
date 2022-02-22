@@ -8,14 +8,14 @@ type Memtable struct {
 	structure *SkipList
 	max_size  int
 	curr_size int
-	threshold float32
+	threshold float64
 }
 
 //Funkcija kreira novu memtabelu
 //Ideja je da se max_size i threshold uzimaju od nekih lokalnih promenljivih koje se podesavaju citanjem eksterne
 //konfiguracije
 
-func NewMemtable(max_s int, thresh float32) *Memtable {
+func NewMemtable(max_s int, thresh float64) *Memtable {
 	return &Memtable{
 		structure: NewSkipList(),
 		max_size:  max_s,
@@ -42,13 +42,7 @@ func (m *Memtable) GetElement(key string) []byte {
 /*Uzima podatak u formatu kao WAL i upisuje ga u memtabelu
 Vraca status izvrsenja - true = uspesno, false = neuspesno (kljuc vec postoji u strukturi)*/
 func (m *Memtable) PutElement(input []byte) (bool, error) {
-	full_percent := (m.max_size / m.curr_size) * 100
-	if float32(full_percent) >= m.threshold {
-		_, err := m.Flush()
-		if err != nil {
-			return false, err
-		}
-	}
+
 	if m.structure.AddElement(input) == true {
 		m.curr_size += 1
 		return true, nil
@@ -74,7 +68,6 @@ func (m *Memtable) Flush() ([][]byte, error) {
 	ret_val := m.structure.GetAll()
 	m.curr_size = 0
 	m.structure = NewSkipList()
-	//TODO: Sprovesti ret_val do SSTabele za upis
 	err := RecreateWAL()
 	if err != nil {
 		return ret_val, err

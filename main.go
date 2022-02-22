@@ -9,6 +9,13 @@ import (
 	"strings"
 )
 
+//Strukture koje se nalaze u memoriji i konfiguracioni objekat sa iscitanom konfiguracijom
+type System struct{
+	memtable *Memtable
+	cache 	 *Cache
+	config 	 *ConfigObj
+}
+
 //Objekat koji ima sva podesavanja za projekat
 type ConfigObj struct {
 
@@ -36,47 +43,82 @@ type ConfigObj struct {
 	compaction_size int //broj tabela koje se spajaju
 }
 
-func put(key string, value []byte, mem Memtable, config ConfigObj) {
-	err := log.WritePutBuffer(key, value)
+func (sys *System) put(key string, value []byte) bool {
+	err,wal_in := log.WritePutBuffer(key, value)
 	if err != nil {
 		fmt.Println(err)
-		return
+		return false
 	}
-	_, err = mem.PutElement(value)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	if mem.curr_size == mem.max_size {
-		data, err := mem.Flush()
+
+	full_percent := (sys.memtable.max_size / sys.memtable.curr_size) * 100
+	if float64(full_percent) >= sys.memtable.threshold {
+		data, err := sys.memtable.Flush()
 		if err != nil {
-			panic(err)
+			SSTable.MakeTable(data, 1, sys.config.bloom_precision)
+		} else{
+			return false
 		}
-		SSTable.MakeTable(data, 1, config.bloom_precision)
 	}
+
+	_, err = sys.memtable.PutElement(wal_in)
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	return true
+
 }
 
-func get(key string, mem Memtable, config ConfigObj) []byte {
+func (sys *System) get(key string) []byte {
 	//Ako nije pronadjeno u kesu i mem tabili
-	value, found := SSTable.Find(key, config.max_height)
-	if found {
-		return value
-	} else {
-		return nil
+	mem_val := sys.memtable.GetElement(key)
+	if mem_val == nil {
+		cache_val := sys.cache.Search(key)	//ukoliko je podatak u cache-u,on ga automatski propagira na prvo mesto
+		if cache_val == nil {
+			value, found := SSTable.Find(key, sys.config.max_height)
+			if found {
+				sys.cache.Insert(key,value)
+				return value
+			} else {
+				return nil
+			}
+		} else{
+			return cache_val.Value.(KV).value
+		}
+	} else{
+		sys.cache.Insert(key,mem_val)
+		return mem_val
 	}
+
+
 }
 
-func myDelete(key string, mem Memtable, config ConfigObj) bool {
+func (sys *System) Delete(key string) bool {
 	err := log.WriteDeleteBuffer(key)
 	if err != nil {
 		fmt.Println(err)
 		return false
 	}
-	//ako nije obrisano u mem tabeli
-	if SSTable.Delete(key, config.max_height) {
-		return true
-	} else {
-		return false
+	if sys.memtable.DeleteElement(key) == false {
+		if SSTable.Delete(key, sys.config.max_height) {
+			return true
+		} else {
+			return false
+		}
+	}
+
+	return true
+}
+
+//Incijalizacija memtabele, cache-a i konfiguracionog objekta
+func CreateSystem()	*System{
+	config_obj := Default()
+	config_obj.ReadConfig("config.txt")
+	return &System{
+		memtable : NewMemtable(config_obj.mem_max_size,config_obj.threshold),
+		cache : createCache(config_obj.cache_limit),
+		config: config_obj,
 	}
 }
 
@@ -138,7 +180,7 @@ func CheckValFloat(val string, min float64, max float64) (bool, float64) {
 
 //Funkcija iscitava eksterni konfiguracioni fajl na osnovu prosledjene putanje i proverava valjanost vrednosti
 //Menja konfiguracioni objekat (atribute) ukoliko je ispravna vrednost
-//TODO:Prilagodi opsege vrednosti za svaki atribut!
+
 func (config *ConfigObj) ReadConfig(path string) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -253,9 +295,9 @@ func (config *ConfigObj) PrintConfig() {
 }
 
 func main() {
-	config := Default()
-	config.ReadConfig("config.txt")
-	config.PrintConfig()
+
+	system := CreateSystem()
+	system.put("1",[]byte("prvi test"))
 
 	err := InitWAL()
 	if err != nil {
