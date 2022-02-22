@@ -1,10 +1,10 @@
 package kompakcije
 
 import (
-	"main/SSTable"
 	"encoding/binary"
 	"errors"
 	"log"
+	"main/SSTable"
 	"os"
 	"strconv"
 )
@@ -90,6 +90,7 @@ func loadTables(merge int, level int) ([]*os.File, bool) {
 		tempFile, err := os.OpenFile("data/SSTable"+name+"/SSTable"+name+".txt", os.O_RDONLY, 0666)
 		//if file can't be opened -> no more needed to merge
 		if err != nil {
+			tempFile.Close()
 			return files, true
 		}
 		files[i] = tempFile
@@ -134,6 +135,11 @@ func tidyLevel(level int, merge int, lastTable int) {
 		}
 		//rename summary
 		err = os.Rename("data/SSTable"+newName+"/summary"+name+".txt", "data/SSTable"+newName+"/summary"+newName+".txt")
+		if err != nil {
+			log.Fatal(err)
+		}
+		//rename merk
+		err = os.Rename("data/SSTable"+newName+"/metadata"+name+".txt", "data/SSTable"+newName+"/metadata"+newName+".txt")
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -210,7 +216,11 @@ func findBest(entrys []entry) (entry, int) {
 
 func closeFiles(files []*os.File) {
 	for _, file := range files {
-		file.Close()
+		err:= file.Close()
+		if err != nil{
+			//println("nesto")
+			panic(err)
+		}
 	}
 }
 

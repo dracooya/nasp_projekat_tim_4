@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"main/SSTable"
+	"main/kompakcije"
 	"os"
 	"strconv"
 	"strings"
@@ -333,13 +334,23 @@ func main() {
 
 	system = CreateSystem()
 
-	/*println(system.put("test", "2", []byte("izmena")))
+	println(system.put("test", "2", []byte("izmena")))
+	println(system.put("test", "1", []byte("prvi testt")))
+	println(system.put("test", "3", []byte("treci testt")))
+	println(system.put("test", "4", []byte("cetvrti testt")))
+
+	println(system.put("test", "22", []byte("izmena")))
 	println(system.put("test", "11", []byte("prvi testt")))
 	println(system.put("test", "33", []byte("treci testt")))
-	println(system.put("test", "44", []byte("cetvrti testt")))*/
+	println(system.put("test", "44", []byte("cetvrti testt")))
+
+	println(system.put("test", "222", []byte("izmena")))
+	println(system.put("test", "111", []byte("prvi testt")))
+	println(system.put("test", "333", []byte("treci testt")))
+	println(system.put("test", "444", []byte("cetvrti testt")))
 	//println(system.Delete("test", "2"))
 	//println(string(system.get("test", "2")))
-	//kompakcije.Kompakcija(system.config.compaction_size,system.config.max_height,system.config.bloom_precision)
+	kompakcije.Kompakcija(system.config.compaction_size,system.config.max_height,system.config.bloom_precision)
 	//println(string(system.get("test", "2")))
 	//println(string(system.get("test", "2")))
 	//println(system.put("test", "", []byte("cetvrti test")))
