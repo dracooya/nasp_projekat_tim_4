@@ -15,16 +15,6 @@ import (
 	"time"
 )
 
-var (
-	batchSize    = 4
-	segmentSize  = 10
-	lowWaterMark = 4
-
-	ErrCorrupted   = errors.New("log corrupted")
-	ErrOutOfBounds = errors.New("index out of bounds")
-	ErrNotFound    = errors.New("file not found")
-)
-
 type EntryWAL struct {
 	key       string
 	value     []byte
@@ -41,6 +31,18 @@ type Log struct {
 	batchNum  int
 	entryNum  int
 }
+
+var (
+	batchSize    = 4
+	segmentSize  = 10
+	lowWaterMark = 4
+
+	ErrCorrupted   = errors.New("log corrupted")
+	ErrOutOfBounds = errors.New("index out of bounds")
+	ErrNotFound    = errors.New("file not found")
+
+	log *Log
+)
 
 func fileLen(file *os.File) (int64, error) {
 	info, err := file.Stat()
@@ -678,15 +680,40 @@ func InitializeWALConfigs(batchSize_ int, segmentSize_ int, lowWaterMark_ int) {
 	lowWaterMark = lowWaterMark_
 }
 
+// InitWAL - funkcija koja inicijalizuje novi WAL
+func InitWAL() error {
+	ClearWALFolder()
+	var err error
+	log, err = Create("wal")
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// RecreateWAL - funkcija koja brise WAL i kreira novi
+func RecreateWAL() error {
+	err := log.Close()
+	if err != nil {
+		return err
+	}
+	err = InitWAL()
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func test() {
-	err := LoadConfigurations()
+	/*err := LoadConfigurations() // podešavanja se sada učitavaju u mainu
 	if os.IsNotExist(err) {
 		fmt.Println("config.txt ne postoji, u upotrebi su podrazumevana podešavanja.")
-	}
+	}*/
 
 	ClearWALFolder()
 
-	log, err := Create("wal")
+	var err error
+	log, err = Create("wal")
 	if err != nil {
 		fmt.Println(err)
 		return
