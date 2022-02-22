@@ -59,7 +59,11 @@ func (sys *System) put(user string, key string, value []byte) bool {
 		return false
 	}
 
-	full_percent := (sys.memtable.max_size / sys.memtable.curr_size) * 100
+	full_percent := 0
+	if sys.memtable.curr_size != 0 {
+		full_percent = (sys.memtable.max_size / sys.memtable.curr_size) * 100
+	}
+
 	if float64(full_percent) >= sys.memtable.threshold {
 		data, err := sys.memtable.Flush()
 		if err != nil {
@@ -321,7 +325,7 @@ func main() {
 	}
 
 	system = CreateSystem()
-	system.put("test", "1", []byte("prvi test"))
+	println(system.put("test", "1", []byte("prvi test")))
 	/*system.put("test", "2", []byte("drugi test"))
 	system.put("test", "1", []byte("prvi test"))
 	fmt.Println(system.get("test", "2"))
