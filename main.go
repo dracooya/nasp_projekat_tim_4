@@ -35,11 +35,17 @@ type ConfigObj struct {
 	compaction_size int //broj tabela koje se spajaju
 }
 
-func put(value []byte, mem Memtable, config ConfigObj) {
-	//Ne mogu ni da kreiram ni da pozivam stvari iz WAL-a
-	//Ne znam kako se proveri da li je mem tabela full
-
-	SSTable.MakeTable(mem.Flush(), 1, config.bloom_precision)
+func put(value []byte, wal *Log, mem Memtable, config ConfigObj) {
+	wal.writeBuffer(value)
+	mem.PutElement(value)
+	if mem.curr_size == mem.max_size {
+		data, err := mem.Flush()
+		if err != nil {
+			panic(err)
+		}
+		SSTable.MakeTable(data, 1, config.bloom_precision)
+		//I izbrise se wal???
+	}
 }
 
 func get(key string, mem Memtable, config ConfigObj) []byte {
@@ -51,6 +57,7 @@ func get(key string, mem Memtable, config ConfigObj) []byte {
 		return nil
 	}
 }
+
 func myDelete(key string, mem Memtable, config ConfigObj) bool {
 	//ako nije obrisano u mem tabeli
 	if SSTable.Delete(key, config.max_height) {
