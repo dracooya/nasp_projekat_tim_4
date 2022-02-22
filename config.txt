@@ -1,7 +1,7 @@
-batchSize=3
-segmentSize=6
+batchSize=1
+segmentSize=2
 lowWaterMark=3
-tokens=100
+tokens=50
 minutes=1
 memMaxSize=5
 memThreshold=80

@@ -160,7 +160,7 @@ func Default() *ConfigObj {
 		segment_size: 6,
 		low_w_mark:   3,
 
-		tokens:  10,
+		tokens:  50,
 		minutes: 1,
 
 		cache_limit: 3,
@@ -239,7 +239,7 @@ func (config *ConfigObj) ReadConfig(path string) {
 			}
 
 		case "lowWaterMark":
-			correct, val := CheckValInt(pair[1], 2, 10)
+			correct, val := CheckValInt(pair[1], 1, 10)
 			if correct {
 				config.low_w_mark = val
 			} else {
@@ -333,6 +333,8 @@ func main() {
 	}
 
 	system = CreateSystem()
+	InitializeTokenBucketConfigs(uint32(system.config.tokens), uint32(system.config.minutes))
+	InitializeWALConfigs(system.config.batch_size, system.config.segment_size, system.config.low_w_mark)
 
 	println(system.put("test", "2", []byte("izmena")))
 	println(system.put("test", "1", []byte("prvi testt")))
@@ -350,7 +352,7 @@ func main() {
 	println(system.put("test", "444", []byte("cetvrti testt")))
 	//println(system.Delete("test", "2"))
 	//println(string(system.get("test", "2")))
-	kompakcije.Kompakcija(system.config.compaction_size,system.config.max_height,system.config.bloom_precision)
+	kompakcije.Kompakcija(system.config.compaction_size, system.config.max_height, system.config.bloom_precision)
 	//println(string(system.get("test", "2")))
 	//println(string(system.get("test", "2")))
 	//println(system.put("test", "", []byte("cetvrti test")))
